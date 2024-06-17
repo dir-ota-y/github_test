@@ -1,0 +1,269 @@
+main:
+  params: [input]
+  steps:
+    - initialization:
+        assign:
+          - failure_list: ""
+          - argument: ${input}
+    - start-log:
+        try:
+          call: sys.log
+          args:
+              text: "PM-I-JOB-START-MASTER:マスタ登録ジョブが開始しました."
+              severity: INFO
+        retry:
+            predicate: ${log_retry_condition}
+    ####################################################################################
+    # タイムスタンプ作成の処理
+    ####################################################################################
+    - create-timestamp:
+        try: 
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: vr-pm-stg-wofw-child-timestamp
+            location: asia-northeast1
+            project_id: ${argument.project_id}
+            argument: ${argument}
+          result: createTimestampResult
+        retry:
+          predicate: ${retry_condition}
+          max_retries: 1
+    - check-create-timestamp:
+        switch:
+            - condition: ${createTimestampResult.is_success == False}
+              assign: 
+                  - failure_list: ${failure_list + "[AREA_CODE:MASTER, job:create-timestamp], "}
+              next: check_failure_list
+        next: create-properties
+    ####################################################################################
+    # プロパティファイル作成の処理
+    ####################################################################################
+    - create-properties:
+        try: 
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: vr-pm-stg-wofw-child-properties
+            location: asia-northeast1
+            project_id: ${argument.project_id}
+            argument: ${argument}
+          result: createPropertiesResult
+        retry:
+          predicate: ${retry_condition}
+          max_retries: 1
+    - check-create-properties:
+        switch:
+            - condition: ${createPropertiesResult.is_success == False}
+              assign: 
+                  - failure_list: ${failure_list + "[AREA_CODE:MASTER, job:create-properties]"}
+              next: check_failure_list
+        next: file-copy
+    ####################################################################################
+    # ファイル連携の処理
+    ####################################################################################
+    - file-copy:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: vr-pm-stg-wofw-child-filecopy
+            location: asia-northeast1
+            project_id: ${argument.project_id}
+            argument: ${argument}
+          result: fileCopyResult
+        retry:
+          predicate: ${retry_condition}
+          max_retries: 1
+    - check-file-copy:
+        switch:
+            - condition: ${fileCopyResult.is_success == False}
+              assign: 
+                - failure_list: ${failure_list + "[AREA_CODE:MASTER, job:file-copy]"}
+              next: check_failure_list
+        next: file-encode
+    - file-encode:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: vr-pm-stg-wofw-child-fileencode
+            location: asia-northeast1
+            project_id: ${argument.project_id}
+            argument: ${argument}
+          result: fileEncodeResult
+        retry:
+          predicate: ${retry_condition}
+          max_retries: 1
+    - check-file-encode:
+        switch:
+            - condition: ${fileEncodeResult.is_success == False}
+              assign: 
+                - failure_list: ${failure_list + "[AREA_CODE:MASTER, job:file-encode], "}
+              next: check_failure_list
+        next: file-rename
+    - file-rename:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: vr-pm-stg-wofw-child-filerename
+            location: asia-northeast1
+            project_id: ${argument.project_id}
+            argument: ${argument}
+          result: fileRenameResult
+        retry:
+          predicate: ${retry_condition}
+          max_retries: 1
+    - check-file-rename:
+        switch:
+            - condition: ${fileRenameResult.is_success == False}
+              assign: 
+                - failure_list: ${failure_list + "[AREA_CODE:MASTER, job:file-rename]"}
+              next: check_failure_list
+        next: file-archive
+    - file-archive:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: vr-pm-stg-wofw-child-filearchive
+            location: asia-northeast1
+            project_id: ${argument.project_id}
+            argument: ${argument}
+          result: fileArchiveResult
+        retry:
+          predicate: ${retry_condition}
+          max_retries: 1
+    - check-file-archive:
+        switch:
+            - condition: ${fileArchiveResult.is_success == False}
+              assign: 
+                - failure_list: ${failure_list + "[AREA_CODE:MASTER, job:file-archive]"}
+              next: check_failure_list
+        next: file-delete
+    ####################################################################################
+    # ファイル削除の処理
+    ####################################################################################
+    - file-delete:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: vr-pm-stg-wofw-child-filedelete
+            location: asia-northeast1
+            project_id: ${argument.project_id}
+            argument: ${argument}
+          result: fileDeleteResult
+        retry:
+          predicate: ${retry_condition}
+          max_retries: 1
+    - check-file-delete:
+        switch:
+            - condition: ${fileDeleteResult.is_success == False}
+              assign: 
+                - failure_list: ${failure_list + "[AREA_CODE:MASTER, job:file-delete]"}
+              next: check_failure_list
+        next: data-load
+    ####################################################################################
+    # データロードの処理
+    ####################################################################################
+    - data-load:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: vr-pm-stg-wofw-child-dataload
+            location: asia-northeast1
+            project_id: ${argument.project_id}
+            argument: ${argument}
+          result: dataLoadResult
+        retry:
+          predicate: ${retry_condition}
+          max_retries: 1
+    - check-data-load:
+        switch:
+            - condition: ${dataLoadResult.is_success == False}
+              assign: 
+                - failure_list: ${failure_list + "[AREA_CODE:MASTER, job:data-load]"}
+              next: check_failure_list
+        next: datamerge-dataload
+    - datamerge-dataload:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: vr-pm-stg-wofw-child-datamerge-dataload
+            location: asia-northeast1
+            project_id: ${argument.project_id}
+            argument: ${argument}
+          result: dataMergeDataLoadResult
+        retry:
+          predicate: ${retry_condition}
+          max_retries: 1
+    - check-datamerge-dataload:
+        switch:
+            - condition: ${dataMergeDataLoadResult.is_success == False}
+              assign: 
+                - failure_list: ${failure_list + "[AREA_CODE:MASTER, job:datamerge-dataload]"}
+              next: check_failure_list
+        next: check_failure_list
+    ####################################################################################
+    # 正常終了確認
+    ####################################################################################
+    - check_failure_list: 
+        switch: 
+            - condition: ${failure_list != ""}
+              next: error-log
+        next: end-log
+    - end-log:
+        try:
+          call: sys.log
+          args:
+              text: "PM-I-JOB-END-MASTER:マスタ登録ジョブが正常終了しました."
+              severity: INFO
+        retry:
+            predicate: ${log_retry_condition}
+    - finish:
+        return: True
+    - error-log:
+        try:
+          call: sys.log
+          args:
+              text: ${"PM-E-JOB-ERROR-MASTER:マスタ登録ジョブが異常終了しました. " +failure_list}
+              severity: ERROR
+        retry:
+            predicate: ${log_retry_condition}
+    - failure:
+        return: False
+
+# リトライ実施の条件ステップ（True の場合、リトライを実施）
+retry_condition:
+    params: [e]
+    steps: 
+      - what-to-repeat: 
+            switch: 
+              - condition: ${("ConnectionError" in e.tags) or ("SystemError" in e.tags) or ("HttpError" in e.tags) or (text.match_regex(e.operation.error.payload, "ConnectionError")) or (text.match_regex(e.operation.error.payload, "SystemError")) or (text.match_regex(e.operation.error.payload, "HttpError")) }
+                steps:
+                 - except-log-output: 
+                    call: sys.log
+                    args:
+                      text: "PM-I-JOB-ERROR-EXCEPTION:Google 内部エラーが発生しました. 30分後にリトライします.（通知対象外）"
+                      severity: INFO
+                 - retry-wait: 
+                    call: sys.sleep
+                    args:
+                      seconds: 1800
+                 - return-true: 
+                    return: true
+      - otherwise:
+            return: False
+
+# ログ出力時のリトライ実施の条件ステップ（True の場合、リトライを実施）
+log_retry_condition:
+    params: [e]
+    steps: 
+      - what-to-repeat: 
+            switch: 
+              - condition: ${"SystemError" in e.tags}
+                steps:
+                 - except-log-output: 
+                    call: sys.log
+                    args:
+                      text: "PM-I-LOG-ERROR:ログ出力時にエラーが発生しました. リトライします.（通知対象外）"
+                      severity: INFO
+                 - return-true: 
+                    return: true
+      - otherwise:
+            return: False

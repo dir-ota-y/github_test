@@ -1,0 +1,91 @@
+main:
+  params: [argument]
+  steps:
+    - initialization:
+        assign:
+          - project_id: ${argument.project_id}
+          - copy_s3_bucket: ${argument.copy_s3_bucket}
+          - copy_s3_folder: ${argument.copy_s3_folder}
+          - prg_gcs_bucket: ${argument.prg_gcs_bucket}
+          - timestamp_file: ${argument.timestamp_file}
+          - filecopy_parameter_file: ${argument.filecopy_parameter_file}
+          - excute_environment: ${argument.excute_environment}
+          - area_code: ${argument.area_code}
+          - monthly_folder_flag: ${argument.monthly_folder_flag}
+          - exist_data_skip: ${argument.exist_data_skip}
+    - start-log:
+        try:
+          call: sys.log
+          args:
+              text: ${"PM-I-WF-C-START-FILEDELETE:IFファイル削除ジョブが開始しました.[AREA_CODE:" +string(area_code)+ "]"}
+              severity: INFO
+        retry:
+            predicate: ${log_retry_condition}
+    - file-delete:
+        try:
+          call: http.post
+          args:
+              url: https://vr-pm-stg-runs-filedelete-3jhswyjyka-an.a.run.app
+              auth:
+                type: OIDC
+              body:
+                project_id: ${project_id}
+                copy_s3_bucket: ${copy_s3_bucket}
+                copy_s3_folder: ${copy_s3_folder}
+                prg_gcs_bucket: ${prg_gcs_bucket}
+                timestamp_file: ${timestamp_file}
+                filecopy_parameter_file: ${filecopy_parameter_file}
+                excute_environment: ${excute_environment}
+                area_code: ${area_code}
+                monthly_folder_flag: ${monthly_folder_flag}
+                exist_data_skip: ${exist_data_skip}
+              timeout: 1800
+          result: fileDeleteResult
+        except:
+          as: e
+          steps:
+            - exception-raise:
+                raise: ${e}
+    - check-filedelete:
+        switch:
+            - condition: ${fileDeleteResult.body.is_success == False}
+              next: error-log
+        next: end-log
+    - end-log:
+        try:
+          call: sys.log
+          args:
+              text: ${"PM-I-WF-C-END-FILEDELETE:IFファイル削除ジョブが終了しました.[AREA_CODE:" +string(area_code)+ "]"}
+              severity: INFO
+        retry:
+            predicate: ${log_retry_condition}
+    - finish:
+        return: ${fileDeleteResult.body}
+    - error-log:
+        try:
+          call: sys.log
+          args:
+              text: ${"PM-I-WF-C-ERROR-FILEDELETE:IFファイル削除ジョブが異常終了しました（通知対象外）[AREA_CODE:" +string(area_code)+ "]"}
+              severity: INFO
+        retry:
+            predicate: ${log_retry_condition}
+    - failure:
+        return: ${fileDeleteResult.body}
+
+# ログ出力時のリトライ実施の条件ステップ（True の場合、リトライを実施）
+log_retry_condition:
+    params: [e]
+    steps: 
+      - what-to-repeat: 
+            switch: 
+              - condition: ${"SystemError" in e.tags}
+                steps:
+                 - except-log-output: 
+                    call: sys.log
+                    args:
+                      text: "PM-I-LOG-ERROR:ログ出力時にエラーが発生しました. リトライします.（通知対象外）"
+                      severity: INFO
+                 - return-true: 
+                    return: true
+      - otherwise:
+            return: False

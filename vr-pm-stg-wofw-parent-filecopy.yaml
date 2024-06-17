@@ -1,0 +1,216 @@
+main:
+  params: [input]
+  steps:
+    - initialization:
+        assign:
+          - failure_list: ""
+    - start-log:
+        try:
+          call: sys.log
+          args:
+              text: "PM-I-WF-P-START-FILECOPY:IFファイル連携処理が開始しました."
+              severity: INFO
+        retry:
+            predicate: ${log_retry_condition}
+    ####################################################################################
+    # 並列処理するためのJSONファイルを読み込む（map 変数 の object_data に結果を代入）
+    ####################################################################################
+    - read-parallel-list:
+        call: googleapis.storage.v1.objects.get
+        args: 
+            bucket: ${input.prg_gcs_bucket}
+            object: ${input.parallel_list}
+            query: 
+                alt: "media"
+        result: object_data
+    ####################################################################################
+    # 並列のループ処理開始
+    ####################################################################################
+    - loop-step: 
+        parallel: # 並列処理の宣言
+          shared: [input,failure_list] # 並列処理で共通で使用する変数
+          for: # object_data の Key の数分ループ
+            value: key
+            index: i
+            in: ${keys(object_data)}
+            steps: 
+              - update-value: 
+                  assign: 
+                    - input.area_code: ${object_data[key]} # 読み込んだ parallel list の地区コードに更新
+                  # config 配下の地区別のプロパティファイル名に更新
+                    - input.filecopy_parameter_file: ${"config/" + string(input.area_code) + "/work_filecopy_parameter_file.properties"}
+                    - argument: ${input}
+              ####################################################################################
+              # ファイル連携の処理
+              ####################################################################################
+              - file-copy:
+                  try:
+                    call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+                    args:
+                      workflow_id: vr-pm-stg-wofw-child-filecopy
+                      location: asia-northeast1
+                      project_id: ${argument.project_id}
+                      argument: ${argument}
+                    result: fileCopyResult
+                  retry:
+                    predicate: ${retry_condition}
+                    max_retries: 1
+              - check-file-copy:
+                  switch:
+                      - condition: ${fileCopyResult.is_success == False}
+                        assign: 
+                          - failure_list: ${failure_list + "[AREA_CODE:"+string(argument.area_code)+", job:file-copy], "}
+                        next: loopend-log
+                  next: file-encode
+              - file-encode:
+                  try:
+                    call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+                    args:
+                      workflow_id: vr-pm-stg-wofw-child-fileencode
+                      location: asia-northeast1
+                      project_id: ${argument.project_id}
+                      argument: ${argument}
+                    result: fileEncodeResult
+                  retry:
+                    predicate: ${retry_condition}
+                    max_retries: 1
+              - check-file-encode:
+                  switch:
+                      - condition: ${fileEncodeResult.is_success == False}
+                        next: loopend-log
+                  next: file-rename
+              - file-rename:
+                  try:
+                    call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+                    args:
+                      workflow_id: vr-pm-stg-wofw-child-filerename
+                      location: asia-northeast1
+                      project_id: ${argument.project_id}
+                      argument: ${argument}
+                    result: fileRenameResult
+                  retry:
+                    predicate: ${retry_condition}
+                    max_retries: 1
+              - check-file-rename:
+                  switch:
+                      - condition: ${fileRenameResult.is_success == False}
+                        assign: 
+                          - failure_list: ${failure_list + "[AREA_CODE:"+string(argument.area_code)+", job:file-rename], "}
+                        next: loopend-log
+                  next: file-archive
+              - file-archive:
+                  try:
+                    call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+                    args:
+                      workflow_id: vr-pm-stg-wofw-child-filearchive
+                      location: asia-northeast1
+                      project_id: ${argument.project_id}
+                      argument: ${argument}
+                    result: fileArchiveResult
+                  retry:
+                    predicate: ${retry_condition}
+                    max_retries: 1
+              - check-file-archive:
+                  switch:
+                      - condition: ${fileArchiveResult.is_success == False}
+                        assign: 
+                          - failure_list: ${failure_list + "[AREA_CODE:"+string(argument.area_code)+", job:file-archive], "}
+                        next: loopend-log
+                  next: file-delete
+              - file-delete:
+                  try:
+                    call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+                    args:
+                      workflow_id: vr-pm-stg-wofw-child-filedelete
+                      location: asia-northeast1
+                      project_id: ${argument.project_id}
+                      argument: ${argument}
+                    result: fileDeleteResult
+                  retry:
+                    predicate: ${retry_condition}
+                    max_retries: 1                  
+              - check-file-delete:
+                  switch:
+                      - condition: ${fileDeleteResult.is_success == False}
+                        assign: 
+                          - failure_list: ${failure_list + "[AREA_CODE:"+string(argument.area_code)+", job:file-delete], "}
+                        next: loopend-log
+                  next: loopend-log
+              - loopend-log:
+                  try:
+                    call: sys.log
+                    args:
+                        text: ${"PM-I-WF-P-LOOP-END-FILECOPY:[AREA_CODE:" +string(argument.area_code) +"]のループ処理が終了しました."}
+                        severity: INFO
+                  retry:
+                    predicate: ${log_retry_condition}
+    ####################################################################################
+    # 並列のループ処理終了
+    ####################################################################################
+    # 正常終了確認
+    ####################################################################################
+    - check_failure_list: 
+        switch: 
+            - condition: ${failure_list != ""}
+              next: error-log
+        next: end-log
+    - end-log:
+        try:
+          call: sys.log
+          args:
+              text: "PM-I-WF-P-END-FILECOPY:IFファイル連携処理が正常終了しました."
+              severity: INFO
+        retry:
+            predicate: ${log_retry_condition}
+    - finish:
+        return: True
+    - error-log:
+        try:
+          call: sys.log
+          args:
+              text: ${"PM-I-WF-P-ERROR-FILECOPY:IFファイル連携処理が異常終了しました（通知対象外） " +failure_list}
+              severity: INFO
+        retry:
+            predicate: ${log_retry_condition}
+    - failure:
+        return: False
+
+# リトライ実施の条件ステップ（True の場合、リトライを実施）
+retry_condition:
+    params: [e]
+    steps: 
+      - what-to-repeat: 
+            switch: 
+              - condition: ${("ConnectionError" in e.tags) or ("SystemError" in e.tags) or ("HttpError" in e.tags) or (text.match_regex(e.operation.error.payload, "ConnectionError")) or (text.match_regex(e.operation.error.payload, "SystemError")) or (text.match_regex(e.operation.error.payload, "HttpError")) }
+                steps:
+                 - except-log-output: 
+                    call: sys.log
+                    args:
+                      text: "PM-I-JOB-ERROR-EXCEPTION:Google 内部エラーが発生しました. 30分後にリトライします.（通知対象外）"
+                      severity: INFO
+                 - retry-wait: 
+                    call: sys.sleep
+                    args:
+                      seconds: 1800
+                 - return-true: 
+                    return: true
+      - otherwise:
+            return: False
+
+# ログ出力時のリトライ実施の条件ステップ（True の場合、リトライを実施）
+log_retry_condition:
+    params: [e]
+    steps: 
+      - what-to-repeat: 
+            switch: 
+              - condition: ${"SystemError" in e.tags}
+                steps:
+                 - except-log-output: 
+                    call: sys.log
+                    args:
+                      text: "PM-I-LOG-ERROR:ログ出力時にエラーが発生しました. リトライします.（通知対象外）"
+                      severity: INFO
+                 - return-true: 
+                    return: true
+      - otherwise:
+            return: False
