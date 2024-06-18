@@ -1,0 +1,13 @@
+・ファイル内のcsvの行数を一括取得
+(Get-ChildItem -Recurse D:\Users\DIR_OTA_Y\Desktop\事前テストデータ準備bk\t_sample_p -include *.csv | %{(Get-Content -Path $_).Length} | Measure-Object -sum).sum
+
+
+
+gcloud config set proxy/type http
+gcloud config set proxy/address 192.168.2.58
+gcloud config set proxy/port 3128
+
+git config --global http.proxy http://192.168.2.58:3128
+
+
+
