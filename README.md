@@ -9,8 +9,8 @@ Key-Jack Simulator用データ加工システムのソースコードのバー�
 
 ## 目次
 
--[デプロイ時の設定変更](#デプロイ時の設定変更)
- -[PROJECT_IDの変更](#project_idの変更)
+-[デプロイ時の設定変更](#デプロイ時の設定変更)　
+ -[PROJECT_IDの変更](#project_idの変更)　
  -[手順](#手順)
 
 ## デプロイ時の設定変更
@@ -23,13 +23,13 @@ Key-Jack Simulator用データ加工システムのソースコードのバー�
 
 1.マスタをローカルリポジトリにクローンする。
 
-*set_project_idも同じローカルリポジトリにクローンする。
+　　　　*set_project_idも同じローカルリポジトリにクローンする。
 
 
 2.ローカルリポジトリにてPowerShellを起動し、下記PowerShellコマンドを実行する。
 
     .\set_project_id.ps1 -Environment "" -TargetFolder ""
     
-*Environment ""　にはdevかprodを入力する（例：-Environment "dev"）
+　　　　*Environment ""　にはdevかprodを入力する（例：-Environment "dev"）
 
-*TargetFolder ""　にはローカルリポジトリのパスを入力する（例：-TargetFolder "C:\Users\Desktop"）
+　　　　*TargetFolder ""　にはローカルリポジトリのパスを入力する（例：-TargetFolder "C:\Users\Desktop"）
