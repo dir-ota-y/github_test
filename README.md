@@ -28,5 +28,5 @@ Key-Jack Simulator用データ加工システムのソースコードのバー�
 
     .\set_project_id.ps1 -Environment "" -TargetFolder ""
     
-        *Environment ""　にはdevかprodを入力する（例：-Environment "dev"）
-        *TargetFolder ""　にはローカルリポジトリのパスを入力する（例：-TargetFolder "C:\Users\Desktop"）
+    *Environment ""　にはdevかprodを入力する（例：-Environment "dev"）
+    *TargetFolder ""　にはローカルリポジトリのパスを入力する（例：-TargetFolder "C:\Users\Desktop"）
