@@ -22,11 +22,14 @@ Key-Jack Simulator用データ加工システムのソースコードのバー�
 ### 手順
 
 1.マスタをローカルリポジトリにクローンする。
-        *set_project_idも同じローカルリポジトリにクローンする。
+
+*set_project_idも同じローカルリポジトリにクローンする。
+
 
 2.ローカルリポジトリにてPowerShellを起動し、下記PowerShellコマンドを実行する。
 
     .\set_project_id.ps1 -Environment "" -TargetFolder ""
     
 *Environment ""　にはdevかprodを入力する（例：-Environment "dev"）
+
 *TargetFolder ""　にはローカルリポジトリのパスを入力する（例：-TargetFolder "C:\Users\Desktop"）
