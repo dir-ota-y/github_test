@@ -2,7 +2,9 @@
 
 ## 概要
 Key-Jack Simulator用データ加工システムのソースコードのバージョン管理用リポジトリ
+
 本プロジェクトでは、ソースコード内の各環境名（'dev', 'prod'）をプレースホルダ'${PROJECT_ID}'にて記載し管理している。
+
 デプロイ時にはプレースホルダ'${PROJECT_ID}'を実行したい環境名（'dev', 'prod'）に置換する作業が必要となる。
 
 ## 目次
@@ -25,5 +27,6 @@ Key-Jack Simulator用データ加工システムのソースコードのバー�
 2.ローカルリポジトリにてPowerShellを起動し、下記PowerShellコマンドを実行する。
 
     .\set_project_id.ps1 -Environment "" -TargetFolder ""
+    
         *Environment ""　にはdevかprodを入力する（例：-Environment "dev"）
         *TargetFolder ""　にはローカルリポジトリのパスを入力する（例：-TargetFolder "C:\Users\Desktop"）
